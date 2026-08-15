@@ -1,4 +1,4 @@
-FROM runpod/base:0.4.7-cuda11.8.0
+FROM python:3.11-slim
 
 WORKDIR /
 
@@ -17,12 +17,12 @@ RUN wget -q https://github.com/deepinsight/insightface/releases/download/v0.7/bu
         || for f in /root/.insightface/models/*.onnx; do mv "$f" /root/.insightface/models/buffalo_l/; done) \
     && ls /root/.insightface/models/buffalo_l/
 
-# The swap model. insightface expects it at ~/.insightface/models/inswapper_128.onnx/inswapper_128.onnx
+# The swap model (official insightface release). Expected at ~/.insightface/models/inswapper_128.onnx/inswapper_128.onnx
 RUN mkdir -p /root/.insightface/models/inswapper_128.onnx \
     && wget -q -O /root/.insightface/models/inswapper_128.onnx/inswapper_128.onnx \
-        https://huggingface.co/ezioruan/inswapper_128.onnx/resolve/main/inswapper_128.onnx \
+        https://github.com/deepinsight/insightface/releases/download/v0.7/inswapper_128.onnx \
     && ls -la /root/.insightface/models/inswapper_128.onnx/
 
 COPY handler.py /
 
-CMD ["python", "handler.py"]
+CMD ["python", "-u", "/handler.py"]
