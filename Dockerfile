@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /
 
-RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 wget unzip \
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential libgl1 libglib2.0-0 wget unzip \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /
