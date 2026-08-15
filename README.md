@@ -74,3 +74,4 @@ per-user keys with quotas.
 - **"no face detected"**: use a well-lit frontal face photo for `source`; for the
   target make sure the generated image has a visible face.
 - **Slow first request**: that's the cold start; it's normal.
+- v1 test
