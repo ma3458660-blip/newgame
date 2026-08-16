@@ -12,7 +12,10 @@ from insightface.model_zoo import get_model
 app = FaceAnalysis(name="buffalo_l", providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
 app.prepare(ctx_id=0, det_size=(640, 640))
 
-swapper = get_model("inswapper_128.onnx", download=False, download_zip=False,
+# insightface's get_model treats a ".onnx" name as a raw path (relative to CWD),
+# ignoring ~/.insightface/models/ entirely. So pass the FULL path to the model
+# that the Dockerfile bakes in at /root/.insightface/models/inswapper_128.onnx.
+swapper = get_model("/root/.insightface/models/inswapper_128.onnx", download=False, download_zip=False,
                     providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
 
 
