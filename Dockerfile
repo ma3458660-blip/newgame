@@ -39,14 +39,20 @@ RUN mkdir -p /root/gfpgan /facexlib/weights \
     && test "$(stat -c%s /facexlib/weights/detection_Resnet50_Final.pth)" -gt 90000000 \
     && test "$(stat -c%s /facexlib/weights/parsing_parsenet.pth)" -gt 70000000
 
-# Python deps. torch is the CPU-only build (small ~190MB). gfpgan pulls
-# basicsr + facexlib AND upgrades numpy to 2.x, which crashes onnxruntime 1.18
-# (compiled against numpy 1.x) — so we re-run requirements.txt LAST to force all
-# pinned versions (numpy==1.24.4 etc.) back into place.
+# Python deps. torch is the CPU-only build (GFPGAN runs fine on CPU; the 2.5GB
+# CUDA torch build isn't needed). gfpgan upgrades numpy to 2.x which crashes
+# onnxruntime 1.18 (compiled against numpy 1.x) — so we re-run requirements.txt
+# LAST to force all pinned versions back into place.
+# CUDA: onnxruntime-gpu 1.18 is built against CUDA 11.8; install the full cu11
+# runtime lib set (unpinned, so no version typos can fail the build) and expose
+# them via LD_LIBRARY_PATH so the GPU is actually used instead of CPU fallback.
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir torch==2.2.2 torchvision==0.17.2 --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir gfpgan==1.3.8 \
+    && pip install --no-cache-dir nvidia-cuda-runtime-cu11 nvidia-cublas-cu11 nvidia-cudnn-cu11 nvidia-curand-cu11 nvidia-cufft-cu11 nvidia-cusolver-cu11 nvidia-cusparse-cu11 \
     && pip install --no-cache-dir -r requirements.txt
+
+ENV LD_LIBRARY_PATH=/usr/local/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/site-packages/nvidia/curand/lib:/usr/local/lib/python3.11/site-packages/nvidia/cufft/lib:/usr/local/lib/python3.11/site-packages/nvidia/cusolver/lib:/usr/local/lib/python3.11/site-packages/nvidia/cusparse/lib
 
 COPY handler.py /
 
