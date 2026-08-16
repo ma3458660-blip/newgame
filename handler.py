@@ -71,16 +71,45 @@ def best_face(img):
     return max(faces, key=area)
 
 
+def build_source_face(sources_raw):
+    # Average the ArcFace embeddings of all reference images of the same person:
+    # the averaged identity is usually more stable and closer to the reference
+    # than any single photo.
+    embs = []
+    for s in sources_raw:
+        try:
+            f = best_face(decode_image(s))
+            if f is not None:
+                embs.append(f.normed_embedding)
+        except Exception as e:
+            print("source decode failed:", e)
+    if not embs:
+        return None
+    avg = np.mean(embs, axis=0)
+    avg = avg / np.linalg.norm(avg)
+
+    class FakeFace:
+        pass
+
+    ff = FakeFace()
+    ff.normed_embedding = avg
+    return ff
+
+
 def handler(job):
     inp = job["input"]
     try:
-        source = decode_image(inp.get("source"))
-        target = decode_image(inp.get("target"))
+        target_raw = inp.get("target")
+        sources_raw = inp.get("sources") or [inp.get("source")]
 
-        src_face = best_face(source)
+        target = decode_image(target_raw)
         tgt_face = best_face(target)
-        if src_face is None or tgt_face is None:
-            return {"error": "no face detected in source or target image"}
+        if tgt_face is None:
+            return {"error": "no face detected in target image"}
+
+        src_face = build_source_face(sources_raw)
+        if src_face is None:
+            return {"error": "no face detected in any source image"}
 
         result = swapper.get(target, tgt_face, src_face, paste_back=True)
 
