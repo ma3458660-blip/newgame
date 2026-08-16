@@ -8,6 +8,7 @@ import runpod
 import insightface
 from insightface.app import FaceAnalysis
 from insightface.model_zoo import get_model
+from gfpgan import GFPGANer
 
 app = FaceAnalysis(name="buffalo_l", providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
 app.prepare(ctx_id=0, det_size=(640, 640))
@@ -17,6 +18,11 @@ app.prepare(ctx_id=0, det_size=(640, 640))
 # that the Dockerfile bakes in at /root/.insightface/models/inswapper_128.onnx.
 swapper = get_model("/root/.insightface/models/inswapper_128.onnx", download=False, download_zip=False,
                     providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
+
+# Face restoration pass: sharpens the swapped face and pulls it closer to the
+# reference identity (the standard inswapper companion). upscale=1 keeps size.
+gfpganer = GFPGANer(model_path="/root/gfpgan/GFPGANv1.4.pth", upscale=1,
+                    arch="clean", channel_multiplier=2, bg_upsampler=None)
 
 
 def decode_image(data):
@@ -40,10 +46,17 @@ def decode_image(data):
 
 
 def best_face(img):
+    # Largest face, not highest score: a bigger face produces a better ArcFace
+    # embedding, which is what inswapper uses to transfer identity.
     faces = app.get(img)
     if not faces:
         return None
-    return max(faces, key=lambda f: f.det_score)
+
+    def area(f):
+        b = f.bbox.astype(int)
+        return max(1, b[2] - b[0]) * max(1, b[3] - b[1])
+
+    return max(faces, key=area)
 
 
 def handler(job):
@@ -58,6 +71,12 @@ def handler(job):
             return {"error": "no face detected in source or target image"}
 
         result = swapper.get(target, tgt_face, src_face, paste_back=True)
+
+        try:
+            _, _, result = gfpganer.enhance(result, has_aligned=False,
+                                            only_center_face=False, paste_back=True)
+        except Exception as e:
+            print("GFPGAN failed, using raw swap:", e)
 
         ok, buf = cv2.imencode(".jpg", result, [cv2.IMWRITE_JPEG_QUALITY, 92])
         if not ok:
