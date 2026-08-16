@@ -1,5 +1,6 @@
 import base64
 import io
+import sys
 import urllib.request
 
 import cv2
@@ -8,7 +9,6 @@ import runpod
 import insightface
 from insightface.app import FaceAnalysis
 from insightface.model_zoo import get_model
-from gfpgan import GFPGANer
 
 app = FaceAnalysis(name="buffalo_l", providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
 app.prepare(ctx_id=0, det_size=(640, 640))
@@ -19,10 +19,22 @@ app.prepare(ctx_id=0, det_size=(640, 640))
 swapper = get_model("/root/.insightface/models/inswapper_128.onnx", download=False, download_zip=False,
                     providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
 
-# Face restoration pass: sharpens the swapped face and pulls it closer to the
-# reference identity (the standard inswapper companion). upscale=1 keeps size.
-gfpganer = GFPGANer(model_path="/root/gfpgan/GFPGANv1.4.pth", upscale=1,
-                    arch="clean", channel_multiplier=2, bg_upsampler=None)
+# --- Face restoration (GFPGAN), fully optional ---
+# basicsr (gfpgan dep) imports the old module name torchvision.transforms.functional_tensor,
+# which torchvision >=0.16 removed; alias it to the new functional module.
+# If anything here fails, the worker still serves plain swaps (gfpganer stays None).
+gfpganer = None
+try:
+    import torchvision
+    import torchvision.transforms.functional as _tv_f
+    sys.modules["torchvision.transforms.functional_tensor"] = _tv_f
+    sys.modules["torchvision.transforms.functional_pil"] = _tv_f
+    from gfpgan import GFPGANer
+    gfpganer = GFPGANer(model_path="/root/gfpgan/GFPGANv1.4.pth", upscale=1,
+                        arch="clean", channel_multiplier=2, bg_upsampler=None)
+    print("GFPGAN loaded OK")
+except Exception as e:
+    print("GFPGAN unavailable, serving raw swaps:", e)
 
 
 def decode_image(data):
@@ -73,10 +85,11 @@ def handler(job):
         result = swapper.get(target, tgt_face, src_face, paste_back=True)
 
         try:
-            _, _, result = gfpganer.enhance(result, has_aligned=False,
-                                            only_center_face=False, paste_back=True)
+            if gfpganer is not None:
+                _, _, result = gfpganer.enhance(result, has_aligned=False,
+                                                only_center_face=False, paste_back=True)
         except Exception as e:
-            print("GFPGAN failed, using raw swap:", e)
+            print("GFPGAN enhance failed, using raw swap:", e)
 
         ok, buf = cv2.imencode(".jpg", result, [cv2.IMWRITE_JPEG_QUALITY, 92])
         if not ok:
