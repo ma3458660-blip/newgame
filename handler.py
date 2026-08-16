@@ -57,7 +57,7 @@ def handler(job):
         if src_face is None or tgt_face is None:
             return {"error": "no face detected in source or target image"}
 
-        result = swapper.get(target, src_face, paste_back=True)
+        result = swapper.get(target, tgt_face, src_face, paste_back=True)
 
         ok, buf = cv2.imencode(".jpg", result, [cv2.IMWRITE_JPEG_QUALITY, 92])
         if not ok:
