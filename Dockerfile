@@ -24,12 +24,6 @@ RUN mkdir -p /root/.insightface/models \
     && ls -la /root/.insightface/models/inswapper_128.onnx \
     && test "$(stat -c%s /root/.insightface/models/inswapper_128.onnx)" -gt 500000000
 
-# Python deps. torch is the CPU-only build (small ~190MB; GPU torch is 2.5GB and
-# unnecessary — GFPGAN only needs CPU). gfpgan pulls basicsr + facexlib.
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir torch==2.2.2 torchvision==0.17.2 --index-url https://download.pytorch.org/whl/cpu \
-    && pip install --no-cache-dir gfpgan==1.3.8
-
 # GFPGAN face-restoration model + the facexlib weights it auto-loads.
 # Paths match what gfpgan/facexlib expect when running with CWD=/. Size checks
 # fail the build loudly if any download came back wrong.
@@ -44,6 +38,15 @@ RUN mkdir -p /root/gfpgan /facexlib/weights \
     && test "$(stat -c%s /root/gfpgan/GFPGANv1.4.pth)" -gt 300000000 \
     && test "$(stat -c%s /facexlib/weights/detection_Resnet50_Final.pth)" -gt 90000000 \
     && test "$(stat -c%s /facexlib/weights/parsing_parsenet.pth)" -gt 70000000
+
+# Python deps. torch is the CPU-only build (small ~190MB). gfpgan pulls
+# basicsr + facexlib AND upgrades numpy to 2.x, which crashes onnxruntime 1.18
+# (compiled against numpy 1.x) — so we re-run requirements.txt LAST to force all
+# pinned versions (numpy==1.24.4 etc.) back into place.
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir torch==2.2.2 torchvision==0.17.2 --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir gfpgan==1.3.8 \
+    && pip install --no-cache-dir -r requirements.txt
 
 COPY handler.py /
 
