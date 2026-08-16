@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends build-essential
 
 COPY requirements.txt /
 RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir nvidia-cuda-runtime-cu11==11.8.89 nvidia-cublas-cu11==11.11.3.6 nvidia-cudnn-cu11==8.9.7.29
+    && pip install --no-cache-dir nvidia-cuda-runtime-cu11==11.8.89 nvidia-cublas-cu11==11.11.3.6 nvidia-cudnn-cu11==8.9.6.50
 
 # Expose the CUDA 11.8 runtime libs to onnxruntime-gpu 1.18 (built against CUDA 11.8).
 # If any lib fails to load, ORT falls back to CPUExecutionProvider, so this can only help.
